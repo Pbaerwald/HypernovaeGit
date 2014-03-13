@@ -5,7 +5,7 @@
 
 // Based on the GRB model from TestGRB.c, we here try to create a model for the collisions of Hypernovae. Even though there are photohadronic interactions inside the shock of a Hypernova during the Sedov-phase, pp-collisions should actually be the more relevant source of neutrinos. Hence, the standard photohadronic interactions used for our GRB calculations are here actually complemented by code for pp-collisions.
 
-// Last modified: Mar. 07, 2014 by P. Baerwald
+// Last modified: Mar. 12, 2014 by P. Baerwald
 
 #include <stdlib.h>
 #include <stdio.h>
