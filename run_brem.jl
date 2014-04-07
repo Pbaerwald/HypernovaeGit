@@ -15,7 +15,7 @@ temp = 10.^temp_ex;
 num_to_write = 10; 
 results = cell(num_to_write); 
 
-fp = open("parallel_bremsstrahlung_emissivity.txt","w");
+fp = open("parallel_bremsstrahlung_emissivity.dat","w");
 index = 1; 
 tic()
 for i in 1:num_temp
