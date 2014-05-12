@@ -3,7 +3,14 @@ const c = 2.99792458e10		#speed of light [cm/s]
 const h = 6.6260755e-27		#Planck's constant [erg s]
 const k_B = 1.380658e-16	#Boltzmann's constant [erg K^-1]
 const m_e = 9.1093897e-28 	#electron mass [g] 
-const charge_e = 4.8032068e-10 	#electron charge [g^1/2 cm^3/2 s^-1 OR erg^1/2 cm^1/2] 
+const charge_e = 4.8032068e-10 	#electron charge [g^1/2 cm^3/2 s^-1 OR erg^1/2 cm^1/2]
+
+##########################################################################
+#                                                                        #
+#                                                                        #
+#                        RELATIVISTIC FUNCTIONS                          #
+#                                                                        #
+##########################################################################
 
 #Calculates the scattering cross section as a function of photon energy
 #the energy is normalized to the electron rest mass energy AS SEEN IN THE ELECTRONS REST FRAME
@@ -19,12 +26,12 @@ function scattering_cross_section(sx::Float64)
     @assert(sx > 0.0); 
     low_limit = 0.1; 
     high_limit = 100.0; 
-    result = 0.0; 
+    this_result = 0.0;
     
     if(sx < low_limit)
-       result = 1.0-2*sx+26.0*sx*sx/5; 
+       this_result = 1.0-2*sx+26.0*sx*sx/5;
     elseif(sx > high_limit)
-        result = 3*(log(2*sx)+0.5)/(8*sx); 
+        this_result = 3*(log(2*sx)+0.5)/(8*sx);
     else
         temp0 = log(1.0+2.0*sx);
         temp1 = 2*sx*(1+sx)/(1+2*sx) - temp0; 
@@ -34,29 +41,25 @@ function scattering_cross_section(sx::Float64)
             
         temp3 = (1.0+3.0*sx)/(1.0+2.0*sx)/(1.0+2.0*sx); 
             
-        result = 0.75(temp1+temp2-temp3);
+        this_result = 0.75(temp1+temp2-temp3);
     end
-        
-    #TODO add the normalization of the Thompson cross section 
-    return result;
-end
 
-##########################################################################
-#                                                                        #
-#                                                                        #
-#                        RELATIVISTIC FUNCTIONS                          #
-#                                                                        #
-##########################################################################
+    return this_result;
+end
 
 #function which describes the emission by a single particle 
 #function of impact parameter (b), lorentz factor (gamma), angular frequency of emitted light (omega)
-function rel_single_particle_emission(x::Float64)
-    @assert(x > 0.0)
-    bessel = besselk(1,x); 
-    return x*bessel*bessel; 
+#
+#Inputs:
+#   x -- dimentionless quantity definfined in equation 9 of the note
+#
+function rel_single_particle_emission(xi::Float64)
+    @assert(xi > 0.0)
+    bessel = besselk(1,xi);
+    return xi*bessel*bessel;
 end
 
-#funcion which expresses the Maxwell-Juttner distribution 
+#funcion which calculates the Maxwell-Juttner distribution
 #the probability distribution for a relativistic gas 
 #
 #Inputs:
@@ -75,7 +78,7 @@ end
 
 #returns the single energy emissivity for relativistic Bremsstrahlung
 #Inputs:
-#      omega -- angular frequency of light [m_e c^2]
+#      omega -- dimentionless frequency of light [m_e c^2]
 #
 #      gamma -- lorentz factor of electron [1] 
 #Ouputs: 
@@ -104,8 +107,8 @@ end
 #returns the bremsstralung specific emissivity given a relativistic thermal plasma
 #
 #Inputs: 
-#   this_omega -- angular frequency of light emitted [m_e c^2] 
-#   this_theta -- temperature of plasma [m_e c^2] 
+#   this_omega -- dimentionless frequency of light emitted [m_e c^2]
+#   this_theta -- dimentionless temperature of plasma [m_e c^2]
 #
 #Outputs: 
 #   dW/dt_dV_domega integrated over a thermal distribution (omega,T) see notes
@@ -113,7 +116,8 @@ end
 function get_rel_specific_emissivity(this_omega::Float64,this_theta::Float64)
     max_gamma = maximum([1000.0*this_theta,100.0]); 
     #rel_normalization = 6.1206e-43; 	#normalization for ergs s^-1 cm^-3 Hz^-1 
-    rel_normalization = 9.2371e-17; 	#normalization for GeV s^-1 cm^-3 GeV^-1
+    #rel_normalization = 9.2371e-17; 	#normalization for GeV s^-1 cm^-3 GeV^-1
+    rel_normalization = 32*pi*charge_e^6/(3*m_e^2*c^4*h);  #normalization for GeV s^-1 cm^-3 GeV^-1
     
 
     denominator, denominator_err= quadgk(a -> MJ_distribution(a,this_theta),1.0,max_gamma);
@@ -153,6 +157,17 @@ function MB_distribution(E::Float64,T::Float64)
 	result >= 0.0 ? (return result) : (return 0.0);
 end
 
+#function which expresses the Maxwell-Botlzmann distribution
+#the particle velocity probability distribution for a non-relativistic gas
+#as a function of the gas temperatue
+#Inputs:
+#   this_v -- Particle velocity [cm s^-1]
+#	this_T -- gas temperatue    [K]
+#
+#Outputs:
+#	unnormalized Boltzman probability of a particle with energy v in a gas
+#	of temperature T
+
 function MB_vel_distribution(this_v::Float64, this_T::Float64)
 	@assert(this_v > 0.0);
 	@assert(this_T > 0.0);
@@ -167,13 +182,13 @@ end
 #Inputs:
 #
 #   this_nu     -- frequency of light emitted [Hz]
-#   this_temp   -- temperature of plasma [K]
+#   this_temp   -- temperature of plasma      [K]
 #
 #Outputs 
 #   dW/dt_dV_dnu integrated over a thermal distribution (nu,T) 
 #
 #Normalization factor:
-#FUNCTION YOU ARE WORKING ON 
+#GeV s^-1 cm^-3 GeV^-1
 function get_NR_specific_emissivity(this_nu::Float64,this_temp::Float64)
     
     this_result = 0.0;
@@ -181,15 +196,20 @@ function get_NR_specific_emissivity(this_nu::Float64,this_temp::Float64)
 	#NR_normalization = 1.8362e-32;	#normalization for ergs s^-1 cm^-3 Hz^-1
     #NR_normalization = 2.7712e-6; 	#normalization for GeV s^-1 cm^-3 GeV^-1
     
+    NR_normalization = 32*pi*charge_e^6/(3*m_e*c^3*h);  #normalization for GeV s^-1 cm^-3 GeV^-1
+    
+    #constants which reflect b_max/b_min
     coefficient1 = m_e/(8*charge_e^2*this_nu);
     coefficient2 = m_e/(2*pi*h*this_nu);
-        
-    
 	
+    #calculate the limits of integration for the thermal velocity distribution
 	min_v = max((8*charge_e^2*this_nu/m_e)^(1/3),sqrt(2*h*this_nu/m_e));
-	max_v = c;
-	crossover_v = 4*charge_e^2/(pi*h);
+	max_v = 10*sqrt(k_B*this_temp/m_e);
     
+    #veloctity for which we change the b_min function
+	crossover_v = 4*charge_e^2/(pi*h);
+    @assert(max_v < c);
+
     if min_v > max_v
         println("velocity bounds are bad");
         return 0.0;
@@ -266,17 +286,17 @@ function specific_emissivity(nu::Float64,temp::Float64)
     
     #angular frequency scaled to electron rest mass
     #numerical factor h/(m_e c^2):
-    #h      -- Planck's constant    [erg s]
-    #m_e    -- electron rest mass   [g]
-    #c      -- speed of light       [cm s^-1] 
 
-    omega = 8.0933e-21*nu; 
+    #omega = 8.0933e-21*nu;
+    omega = h*nu/(m_e*c^2);
     
     #temperature scaled to electron rest mass 
     #numerical factor k_b/(m_e c^2):
-    #k_b    -- Boltzmann's constant [erg K^-1]
-    theta = 1.787387e-10*temp;
+
+    #theta = 1.787387e-10*temp;
+    theta = k_B*temp/(m_e*c^2); 
     
+    #calculate the emissivity using either the relativistic or non-relativistic functions defined above
     (theta > 0.01 || omega > 0.2) ? (result = get_rel_specific_emissivity(omega,theta)) : (result = get_NR_specific_emissivity(nu,temp));
 
     @assert(result >= 0.0);
