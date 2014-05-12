@@ -1,7 +1,7 @@
 #include some physical constants 
 const c = 2.99792458e10		#speed of light [cm/s]
 const h = 6.6260755e-27		#Planck's constant [erg s]
-const k_B = 1.380658e-16	#Boltzmann's constant [erg K^-1] 
+const k_B = 1.380658e-16	#Boltzmann's constant [erg K^-1]
 const m_e = 9.1093897e-28 	#electron mass [g] 
 const charge_e = 4.8032068e-10 	#electron charge [g^1/2 cm^3/2 s^-1 OR erg^1/2 cm^1/2] 
 
@@ -41,6 +41,13 @@ function scattering_cross_section(sx::Float64)
     return result;
 end
 
+##########################################################################
+#                                                                        #
+#                                                                        #
+#                        RELATIVISTIC FUNCTIONS                          #
+#                                                                        #
+##########################################################################
+
 #function which describes the emission by a single particle 
 #function of impact parameter (b), lorentz factor (gamma), angular frequency of emitted light (omega)
 function rel_single_particle_emission(x::Float64)
@@ -48,36 +55,6 @@ function rel_single_particle_emission(x::Float64)
     bessel = besselk(1,x); 
     return x*bessel*bessel; 
 end
-
-#function which expresses the Maxwell-Botlzmann distribution 
-#the particle energy probability distribution for a non-relativistic gas 
-#as a function of the gas temperatue
-#Inputs: 
-#	E -- Particle kinetic energy  [m_e c^2]
-#	T -- gas temperatue  [electron rest mass energy]
-#
-#Outputs: 
-#	unnormalized Boltzman probability of a particle with energy E in a gas
-#	of temperature T 
-function MB_distribution(E::Float64,T::Float64)
-	@assert(E >= 0); 
-	@assert(T >= 0); 
-	
-	result = 2.0*sqrt(E/pi)*T^(-3/2)*exp(-E/T); 
-	
-	result >= 0.0 ? (return result) : (return 0.0);
-end
-
-function MB_vel_distribution(this_v::Float64, this_T::Float64)
-	@assert(this_v > 0.0); 
-	@assert(this_T > 0.0); 
-	
-	this_x = -0.5*m_e*this_v*this_v/(k_B*this_T); 
-	
-	return this_v*this_v*exp(this_x); 
-end
-	
-	
 
 #funcion which expresses the Maxwell-Juttner distribution 
 #the probability distribution for a relativistic gas 
@@ -150,12 +127,46 @@ function get_rel_specific_emissivity(this_omega::Float64,this_theta::Float64)
     this_result > 0.0 ? (return rel_normalization*this_result) : (return 0.0); 
 end
 
+##########################################################################
+#                                                                        #
+#                                                                        #
+#                    NON-RELATIVISTIC FUNCTIONS                          #
+#                                                                        #
+##########################################################################
+
+#function which expresses the Maxwell-Botlzmann distribution
+#the particle energy probability distribution for a non-relativistic gas
+#as a function of the gas temperatue
+#Inputs:
+#	E -- Particle kinetic energy  [m_e c^2]
+#	T -- gas temperatue  [electron rest mass energy]
+#
+#Outputs:
+#	unnormalized Boltzman probability of a particle with energy E in a gas
+#	of temperature T
+function MB_distribution(E::Float64,T::Float64)
+	@assert(E >= 0);
+	@assert(T >= 0);
+	
+	result = 2.0*sqrt(E/pi)*T^(-3/2)*exp(-E/T);
+	
+	result >= 0.0 ? (return result) : (return 0.0);
+end
+
+function MB_vel_distribution(this_v::Float64, this_T::Float64)
+	@assert(this_v > 0.0);
+	@assert(this_T > 0.0);
+	
+	this_x = -0.5*m_e*this_v*this_v/(k_B*this_T);
+	
+	return this_v*this_v*exp(this_x);
+end
+
 #returns the more exact bremsstralung specific emissivity geven a non-relativistic thermal plasma
 #
 #Inputs:
 #
-#   this_nu     -- frequency of light emitted [m_e c^2]
-#   this_theta  -- temperature of plamsa [m_e c^2]
+#   this_nu     -- frequency of light emitted [Hz]
 #   this_temp   -- temperature of plasma [K]
 #
 #Outputs 
@@ -164,19 +175,49 @@ end
 #Normalization factor:
 #FUNCTION YOU ARE WORKING ON 
 function get_NR_specific_emissivity(this_nu::Float64,this_temp::Float64)
-	NR_normalization = 1.8362e-32;	#normalization for ergs s^-1 cm^-3 Hz^-1
-	NR_normalization = 2.7712e-6; 	#normalization for GeV s^-1 cm^-3 GeV^-1 
+    
+    this_result = 0.0;
+
+	#NR_normalization = 1.8362e-32;	#normalization for ergs s^-1 cm^-3 Hz^-1
+    #NR_normalization = 2.7712e-6; 	#normalization for GeV s^-1 cm^-3 GeV^-1
+    
+    coefficient1 = m_e/(8*charge_e^2*this_nu);
+    coefficient2 = m_e/(2*pi*h*this_nu);
+        
+    
 	
-	min_v = sqrt(2.0*this_nu)*3e8; 
-	max_v = (100.0*min_v > 0.1*c) ? 0.1*c : 100.*min_v; 
-	crossover_v = 4*charge_e^2/(pi*h); 
+	min_v = max((8*charge_e^2*this_nu/m_e)^(1/3),sqrt(2*h*this_nu/m_e));
+	max_v = c;
+	crossover_v = 4*charge_e^2/(pi*h);
+    
+    if min_v > max_v
+        println("velocity bounds are bad");
+        return 0.0;
+    end
 	
 	denominator, denominator_err = quadgk(a -> MB_distribution(a,this_temp),0.0,max_v); 
-	if denominator <= 0.0 
+	if denominator <= 0.0
+        println("denominator is zero");
 		return 0.0;
 	end
+    
+    if min_v < crossover_v
 	
-	numerator, numerator_err = quadgk(b -> 
+        numerator1, numerator_err1 = quadgk(b -> log(coefficient1*b^3)*MB_distribution(b,this_temp)/b,min_v,crossover_v);
+        numerator2, numerator_err2 = quadgk(b -> log(coefficient2*b^2)*MB_distribution(b,this_temp)/b,crossover_v,max_v);
+    
+        this_result = (numerator1+numerator2)/denominator;
+    elseif max_v > min_v > crossover_v
+        numerator ,numerator_err = quadgk(b -> log(coefficient2*b^2)*MB_distribution(b,this_temp)/b,min_v,max_v);
+
+        this_result = numerator/denominator;
+    else
+        println("problem with the velocity bounds");
+        return 0.0;
+    end;
+
+    this_result > 0.0 ? (return this_result) : (return 0.0);
+
 end
 
 
@@ -200,6 +241,9 @@ function get_approx_NR_specific_emissivity(this_nu::Float64,this_theta::Float64,
 	return 6.8e-38*g_ff*exp(-this_nu/this_theta)/sqrt(this_temp); 
 end
 
+#################################################################################################################################
+#################################################################################################################################
+                                      
 #returns normalized bremsstralung specific emissivity of a plasma
 #determines which approximation to use (NR or relativistic) 
 #
@@ -215,7 +259,7 @@ end
 #   n_e     -- electron density in plasma frame [cm^-3]
 #   n_i     -- ion density in plasma frame [cm^-3]
 
-
+                                    
 function specific_emissivity(nu::Float64,temp::Float64)
     @assert(nu > 0.0); 
     @assert(temp > 0.0); 
@@ -233,9 +277,9 @@ function specific_emissivity(nu::Float64,temp::Float64)
     #k_b    -- Boltzmann's constant [erg K^-1]
     theta = 1.787387e-10*temp;
     
-    theta > 0.01 ? (result = get_rel_specific_emissivity(omega,theta)) : (result = get_approx_NR_specific_emissivity(omega,temp));
-    
-    @assert(result >= 0.0); 
+    (theta > 0.01 || omega > 0.2) ? (result = get_rel_specific_emissivity(omega,theta)) : (result = get_NR_specific_emissivity(nu,temp));
+
+    @assert(result >= 0.0);
     
     return result; 
     
