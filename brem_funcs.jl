@@ -1,3 +1,10 @@
+#include some physical constants 
+const c = 2.99792458e10		#speed of light [cm/s]
+const h = 6.6260755e-27		#Planck's constant [erg s]
+const k_B = 1.380658e-16	#Boltzmann's constant [erg K^-1] 
+const m_e = 9.1093897e-28 	#electron mass [g] 
+const charge_e = 4.8032068e-10 	#electron charge [g^1/2 cm^3/2 s^-1 OR erg^1/2 cm^1/2] 
+
 #Calculates the scattering cross section as a function of photon energy
 #the energy is normalized to the electron rest mass energy AS SEEN IN THE ELECTRONS REST FRAME
 #has some approximations for the non-relativisitic and ultra-relativistic 
@@ -61,6 +68,17 @@ function MB_distribution(E::Float64,T::Float64)
 	result >= 0.0 ? (return result) : (return 0.0);
 end
 
+function MB_vel_distribution(this_v::Float64, this_T::Float64)
+	@assert(this_v > 0.0); 
+	@assert(this_T > 0.0); 
+	
+	this_x = -0.5*m_e*this_v*this_v/(k_B*this_T); 
+	
+	return this_v*this_v*exp(this_x); 
+end
+	
+	
+
 #funcion which expresses the Maxwell-Juttner distribution 
 #the probability distribution for a relativistic gas 
 #
@@ -115,24 +133,55 @@ end
 #Outputs: 
 #   dW/dt_dV_domega integrated over a thermal distribution (omega,T) see notes
 #
-#Normalization factor:
-#
 function get_rel_specific_emissivity(this_omega::Float64,this_theta::Float64)
     max_gamma = maximum([1000.0*this_theta,100.0]); 
+    #rel_normalization = 6.1206e-43; 	#normalization for ergs s^-1 cm^-3 Hz^-1 
+    rel_normalization = 9.2371e-17; 	#normalization for GeV s^-1 cm^-3 GeV^-1
     
 
     denominator, denominator_err= quadgk(a -> MJ_distribution(a,this_theta),1.0,max_gamma);
     if denominator == 0.0
         return 0.0; 
     end
-    numerator, numerator_err = quadgk(b -> scattering_cross_section(b)*rel_single_energy_emissivity(this_omega,b)*MJ_distribution(b,this_theta),1.0,max_gamma); 
+    numerator, numerator_err = quadgk(b -> scattering_cross_section(this_omega/b)*rel_single_energy_emissivity(this_omega,b)*MJ_distribution(b,this_theta),1.0,max_gamma); 
     
     this_result = numerator/denominator; 
     
-    this_result > 0.0 ? (return 9.7411e-42*this_result) : (return 0.0); 
+    this_result > 0.0 ? (return rel_normalization*this_result) : (return 0.0); 
 end
 
-#returns the bremsstralung specific emissivity geven a non-relativistic thermal plasma
+#returns the more exact bremsstralung specific emissivity geven a non-relativistic thermal plasma
+#
+#Inputs:
+#
+#   this_nu     -- frequency of light emitted [m_e c^2]
+#   this_theta  -- temperature of plamsa [m_e c^2]
+#   this_temp   -- temperature of plasma [K]
+#
+#Outputs 
+#   dW/dt_dV_dnu integrated over a thermal distribution (nu,T) 
+#
+#Normalization factor:
+#FUNCTION YOU ARE WORKING ON 
+function get_NR_specific_emissivity(this_nu::Float64,this_temp::Float64)
+	NR_normalization = 1.8362e-32;	#normalization for ergs s^-1 cm^-3 Hz^-1
+	NR_normalization = 2.7712e-6; 	#normalization for GeV s^-1 cm^-3 GeV^-1 
+	
+	min_v = sqrt(2.0*this_nu)*3e8; 
+	max_v = (100.0*min_v > 0.1*c) ? 0.1*c : 100.*min_v; 
+	crossover_v = 4*charge_e^2/(pi*h); 
+	
+	denominator, denominator_err = quadgk(a -> MB_distribution(a,this_temp),0.0,max_v); 
+	if denominator <= 0.0 
+		return 0.0;
+	end
+	
+	numerator, numerator_err = quadgk(b -> 
+end
+
+
+
+#returns the approximate bremsstralung specific emissivity geven a non-relativistic thermal plasma
 #
 #Inputs:
 #
@@ -145,7 +194,7 @@ end
 #
 #Normalization factor:
 
-function get_NR_specific_emissivity(this_nu::Float64,this_theta::Float64,this_temp::Float64)
+function get_approx_NR_specific_emissivity(this_nu::Float64,this_theta::Float64,this_temp::Float64)
 	#TODO ADD BETTER APPROXIMATION FOR THE GUANT FACTOR
 	g_ff = 1.2; 
 	return 6.8e-38*g_ff*exp(-this_nu/this_theta)/sqrt(this_temp); 
@@ -184,7 +233,7 @@ function specific_emissivity(nu::Float64,temp::Float64)
     #k_b    -- Boltzmann's constant [erg K^-1]
     theta = 1.787387e-10*temp;
     
-    theta > 0.01 ? (result = get_rel_specific_emissivity(omega,theta)) : (result = get_NR_specific_emissivity(omega,theta,temp));
+    theta > 0.01 ? (result = get_rel_specific_emissivity(omega,theta)) : (result = get_approx_NR_specific_emissivity(omega,temp));
     
     @assert(result >= 0.0); 
     
