@@ -1,6 +1,4 @@
-@everywhere include("brem_funcs.jl")
-
-min_freq_ex = 2.0;
+min_freq_ex = 15.3;
 max_freq_ex = 22.0; 
 num_freq = 500;
 freq_ex = linspace(min_freq_ex,max_freq_ex,num_freq); 

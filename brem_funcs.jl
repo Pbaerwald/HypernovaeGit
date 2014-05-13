@@ -196,22 +196,20 @@ function get_NR_specific_emissivity(this_nu::Float64,this_temp::Float64)
 	#NR_normalization = 1.8362e-32;	#normalization for ergs s^-1 cm^-3 Hz^-1
     #NR_normalization = 2.7712e-6; 	#normalization for GeV s^-1 cm^-3 GeV^-1
     
-    NR_normalization = 32*pi*charge_e^6/(3*m_e*c^3*h);  #normalization for GeV s^-1 cm^-3 GeV^-1
+    NR_normalization = 32*pi*charge_e^6/(3*m_e^2*c^3*h);  #normalization for GeV s^-1 cm^-3 GeV^-1
     
     #constants which reflect b_max/b_min
-    coefficient1 = m_e/(8*charge_e^2*this_nu);
-    coefficient2 = m_e/(2*pi*h*this_nu);
+    coefficient = m_e/(2*h*this_nu);
 	
     #calculate the limits of integration for the thermal velocity distribution
-	min_v = max((8*charge_e^2*this_nu/m_e)^(1/3),sqrt(2*h*this_nu/m_e));
-	max_v = 10*sqrt(k_B*this_temp/m_e);
+	min_v = sqrt(2*h*this_nu/m_e);
+	max_v = max(10.*min_v,10*sqrt(k_B*this_temp/m_e));
     
-    #veloctity for which we change the b_min function
-	crossover_v = 4*charge_e^2/(pi*h);
-    @assert(max_v < c);
+    if max_v > c
+        max_v = c;
+    end 
 
     if min_v > max_v
-        println("velocity bounds are bad");
         return 0.0;
     end
 	
@@ -221,20 +219,10 @@ function get_NR_specific_emissivity(this_nu::Float64,this_temp::Float64)
 		return 0.0;
 	end
     
-    if min_v < crossover_v
-	
-        numerator1, numerator_err1 = quadgk(b -> log(coefficient1*b^3)*MB_distribution(b,this_temp)/b,min_v,crossover_v);
-        numerator2, numerator_err2 = quadgk(b -> log(coefficient2*b^2)*MB_distribution(b,this_temp)/b,crossover_v,max_v);
-    
-        this_result = (numerator1+numerator2)/denominator;
-    elseif max_v > min_v > crossover_v
-        numerator ,numerator_err = quadgk(b -> log(coefficient2*b^2)*MB_distribution(b,this_temp)/b,min_v,max_v);
+ 
+    numerator ,numerator_err = quadgk(b -> log(coefficient*b^2)*MB_distribution(b,this_temp)/b,min_v,max_v);
 
-        this_result = numerator/denominator;
-    else
-        println("problem with the velocity bounds");
-        return 0.0;
-    end;
+    this_result = NR_normalization*numerator/denominator;
 
     this_result > 0.0 ? (return this_result) : (return 0.0);
 
