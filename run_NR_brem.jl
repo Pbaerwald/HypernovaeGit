@@ -13,7 +13,7 @@ temp = 10.^temp_ex;
 num_to_write = 10; 
 results = cell(num_to_write); 
 
-fp = open("parallel_bremsstrahlung_emissivity.dat","w");
+fp = open("parallel_NR_bremsstrahlung_emissivity.dat","w");
 index = 1; 
 tic()
 for i in 1:num_temp
@@ -23,7 +23,7 @@ for i in 1:num_temp
 		index = num_to_write; 
 	end
 	this_temp = temp[i]; 
-	results[index] = pmap(c->specific_emissivity(c,this_temp),freq);
+	results[index] = pmap(a->get_NR_specific_emissivity(a,this_temp),freq);
 	
 	if(index == num_to_write)
 		println("writting..."); 
@@ -32,10 +32,11 @@ for i in 1:num_temp
 		end
 	end
 end
- 
-for k in 1:index
-	print(fp,results[k]'); 
-end
+ if index != num_to_write 
+	for k in 1:index
+		print(fp,results[k]'); 
+	end
+ end 
 toc(); 
 
 close(fp); 
